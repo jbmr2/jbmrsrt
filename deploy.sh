@@ -1,40 +1,34 @@
 #!/bin/bash
-
-# Exit on error
 set -e
 
-echo "Starting deployment of SRT Server Manager..."
+echo "Starting deployment of Simple SRT Server..."
 
 # 1. Update and install dependencies
 sudo apt-get update
-sudo apt-get install -y curl tar nodejs npm
+sudo apt-get install -y curl tar
 
-# 2. Get origin directory (where files are cloned)
-ORIGIN_DIR=$(pwd)
-
-# 3. Create project directory
-PROJECT_DIR="/opt/srt-manager"
+# 2. Setup project folder
+PROJECT_DIR="/opt/srt-server"
 sudo mkdir -p $PROJECT_DIR
 sudo chown $USER:$USER $PROJECT_DIR
+ORIGIN_DIR=$(pwd)
 cd $PROJECT_DIR
 
-# 4. Download and install MediaMTX
+# 3. Download MediaMTX
 MEDIAMTX_VERSION="v1.16.2"
 echo "Downloading MediaMTX $MEDIAMTX_VERSION..."
 curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/${MEDIAMTX_VERSION}/mediamtx_${MEDIAMTX_VERSION}_linux_amd64.tar.gz
 tar -xzf mediamtx.tar.gz
 rm mediamtx.tar.gz
 
-# 5. Copy project files
-cp "$ORIGIN_DIR/manager.html" .
-cp "$ORIGIN_DIR/server.js" .
+# 4. Copy config
 cp "$ORIGIN_DIR/mediamtx.yml" .
 
-# 5. Setup Systemd Service for MediaMTX
+# 5. Create systemd service
 echo "Setting up MediaMTX systemd service..."
 sudo tee /etc/systemd/system/mediamtx.service > /dev/null <<EOF
 [Unit]
-Description=MediaMTX Media Server
+Description=Simple SRT Server (MediaMTX)
 After=network.target
 
 [Service]
@@ -47,30 +41,14 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-# 6. Setup Systemd Service for Web Manager
-echo "Setting up Web Manager systemd service..."
-sudo tee /etc/systemd/system/srt-manager.service > /dev/null <<EOF
-[Unit]
-Description=SRT Server Web Manager
-After=network.target mediamtx.service
-
-[Service]
-Type=simple
-WorkingDirectory=$PROJECT_DIR
-ExecStart=/usr/bin/node server.js
-Restart=on-failure
-Environment=PORT=8080
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 7. Start and enable services
+# 6. Stop srt-manager (old service) and start MediaMTX
+sudo systemctl stop srt-manager || true
+sudo systemctl disable srt-manager || true
 sudo systemctl daemon-reload
 sudo systemctl enable mediamtx
-sudo systemctl start mediamtx
-sudo systemctl enable srt-manager
-sudo systemctl start srt-manager
+sudo systemctl restart mediamtx
 
 echo "Deployment complete!"
-echo "Web Manager should be running at http://$(curl -s https://ifconfig.me):8080"
+echo "SRT Port: 8554"
+echo "HLS Player: http://$(curl -s https://ifconfig.me):8888/stream"
+echo "WebRTC Player: http://$(curl -s https://ifconfig.me):8889/stream"
