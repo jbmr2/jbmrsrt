@@ -9,24 +9,26 @@ echo "Starting deployment of SRT Server Manager..."
 sudo apt-get update
 sudo apt-get install -y curl tar nodejs npm
 
-# 2. Create project directory
+# 2. Get origin directory (where files are cloned)
+ORIGIN_DIR=$(pwd)
+
+# 3. Create project directory
 PROJECT_DIR="/opt/srt-manager"
 sudo mkdir -p $PROJECT_DIR
 sudo chown $USER:$USER $PROJECT_DIR
 cd $PROJECT_DIR
 
-# 3. Download and install MediaMTX
-MEDIAMTX_VERSION="v1.11.0" # You can update this to the latest version found
+# 4. Download and install MediaMTX
+MEDIAMTX_VERSION="v1.11.0"
 echo "Downloading MediaMTX $MEDIAMTX_VERSION..."
 curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/${MEDIAMTX_VERSION}/mediamtx_${MEDIAMTX_VERSION}_linux_amd64.tar.gz
 tar -xzf mediamtx.tar.gz
 rm mediamtx.tar.gz
 
-# 4. Copy project files (These should be uploaded to the VPS in the same directory as this script)
-# For this script to work, manager.html, server.js, and mediamtx.yml must be in the current directory
-cp /tmp/deploy_files/manager.html .
-cp /tmp/deploy_files/server.js .
-cp /tmp/deploy_files/mediamtx.yml .
+# 5. Copy project files
+cp "$ORIGIN_DIR/manager.html" .
+cp "$ORIGIN_DIR/server.js" .
+cp "$ORIGIN_DIR/mediamtx.yml" .
 
 # 5. Setup Systemd Service for MediaMTX
 echo "Setting up MediaMTX systemd service..."
