@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SRT Server Manager</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f9; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stream { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .stream-info { flex-grow: 1; }
+        .stream-links { margin-top: 5px; font-size: 0.9em; }
+        .controls { margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee; }
+        input { padding: 8px; width: 250px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 15px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
+        button:hover { background: #0056b3; }
+        button.delete { background: #dc3545; }
+        button.delete:hover { background: #a71d2a; }
+        .error { color: #dc3545; padding: 10px; border: 1px solid #dc3545; border-radius: 4px; margin-bottom: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SRT Server Manager</h1>
+        
+        <div id="errorMessage" class="error"></div>
+
+        <div id="paths">
+            <h3>Active Streams</h3>
+            <div id="pathList">Loading...</div>
+        </div>
+
+        <div class="controls">
+            <h3>Create New Stream Path</h3>
+            <input type="text" id="newPath" placeholder="Path name (e.g. mystream)">
+            <button onclick="createPath()">Create</button>
+        </div>
+    </div>
+
+    <script>
+        // Points to our Node.js proxy
+        const API_BASE = '/api';
+
+        function showError(msg) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        async function fetchPaths() {
+            try {
+                const res = await fetch(API_BASE + '/paths/list');
+                if (!res.ok) throw new Error(`Server returned ${res.status}`);
+                
+                const data = await res.json();
+                const list = document.getElementById('pathList');
+                list.innerHTML = '';
+                
+                const items = data.items || [];
+                if (items.length === 0) {
+                    list.textContent = 'No active streams.';
+                } else {
+                    items.forEach(path => {
+                        const div = document.createElement('div');
+                        div.className = 'stream';
+
+                        const info = document.createElement('div');
+                        info.className = 'stream-info';
+                        
+                        const name = document.createElement('strong');
+                        name.textContent = path.name;
+                        
+                        const source = document.createElement('span');
+                        source.textContent = ` (Source: ${path.sourceType || 'offline'})`;
+                        
+                        const links = document.createElement('div');
+                        links.className = 'stream-links';
+                        
+                        const hls = document.createElement('a');
+                        hls.href = `${location.protocol}//${location.hostname}:8888/${path.name}`;
+                        hls.target = '_blank';
+                        hls.textContent = 'HLS Player';
+                        
+                        const sep = document.createTextNode(' | ');
+                        
+                        const webrtc = document.createElement('a');
+                        webrtc.href = `${location.protocol}//${location.hostname}:8889/${path.name}`;
+                        webrtc.target = '_blank';
+                        webrtc.textContent = 'WebRTC Player';
+
+                        links.appendChild(hls);
+                        links.appendChild(sep);
+                        links.appendChild(webrtc);
+                        
+                        info.appendChild(name);
+                        info.appendChild(source);
+                        info.appendChild(links);
+
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'delete';
+                        delBtn.textContent = 'Delete';
+                        delBtn.onclick = () => deletePath(path.name);
+
+                        div.appendChild(info);
+                        div.appendChild(delBtn);
+                        list.appendChild(div);
+                    });
+                }
+            } catch (err) {
+                list.textContent = 'Failed to load streams.';
+                console.error(err);
+            }
+        }
+
+        async function createPath() {
+            const input = document.getElementById('newPath');
+            const name = input.value.trim();
+            if (!name) return;
+            
+            try {
+                const res = await fetch(API_BASE + '/config/paths/add/' + name, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({}) // MediaMTX uses defaults if empty
+                });
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Failed to create path (Status ${res.status})`);
+                }
+                
+                input.value = '';
+                fetchPaths();
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function deletePath(name) {
+            if (!confirm(`Are you sure you want to delete path "${name}"?`)) return;
+            
+            try {
+                const res = await fetch(API_BASE + '/config/paths/delete/' + name, {
+                    method: 'DELETE'
+                });
+                
+                if (!res.ok) throw new Error(`Failed to delete (Status ${res.status})`);
+                
+                fetchPaths();
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        // Poll every 5 seconds
+        const interval = setInterval(fetchPaths, 5000);
+        
+        // Initial load
+        fetchPaths();
+    </script>
+</body>
+</html>

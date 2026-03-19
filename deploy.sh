@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+echo "Starting deployment of SRT Server Manager..."
+
+# 1. Update and install dependencies
+sudo apt-get update
+sudo apt-get install -y curl tar nodejs npm
+
+# 2. Create project directory
+PROJECT_DIR="/opt/srt-manager"
+sudo mkdir -p $PROJECT_DIR
+sudo chown $USER:$USER $PROJECT_DIR
+cd $PROJECT_DIR
+
+# 3. Download and install MediaMTX
+MEDIAMTX_VERSION="v1.11.0" # You can update this to the latest version found
+echo "Downloading MediaMTX $MEDIAMTX_VERSION..."
+curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/${MEDIAMTX_VERSION}/mediamtx_${MEDIAMTX_VERSION}_linux_amd64.tar.gz
+tar -xzf mediamtx.tar.gz
+rm mediamtx.tar.gz
+
+# 4. Copy project files (These should be uploaded to the VPS in the same directory as this script)
+# For this script to work, manager.html, server.js, and mediamtx.yml must be in the current directory
+cp /tmp/deploy_files/manager.html .
+cp /tmp/deploy_files/server.js .
+cp /tmp/deploy_files/mediamtx.yml .
+
+# 5. Setup Systemd Service for MediaMTX
+echo "Setting up MediaMTX systemd service..."
+sudo tee /etc/systemd/system/mediamtx.service > /dev/null <<EOF
+[Unit]
+Description=MediaMTX Media Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$PROJECT_DIR
+ExecStart=$PROJECT_DIR/mediamtx
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 6. Setup Systemd Service for Web Manager
+echo "Setting up Web Manager systemd service..."
+sudo tee /etc/systemd/system/srt-manager.service > /dev/null <<EOF
+[Unit]
+Description=SRT Server Web Manager
+After=network.target mediamtx.service
+
+[Service]
+Type=simple
+WorkingDirectory=$PROJECT_DIR
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 7. Start and enable services
+sudo systemctl daemon-reload
+sudo systemctl enable mediamtx
+sudo systemctl start mediamtx
+sudo systemctl enable srt-manager
+sudo systemctl start srt-manager
+
+echo "Deployment complete!"
+echo "Web Manager should be running at http://$(curl -s https://ifconfig.me):8080"
