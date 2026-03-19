@@ -19,7 +19,7 @@ sudo chown $USER:$USER $PROJECT_DIR
 cd $PROJECT_DIR
 
 # 4. Download and install MediaMTX
-MEDIAMTX_VERSION="v1.11.0"
+MEDIAMTX_VERSION="v1.16.2"
 echo "Downloading MediaMTX $MEDIAMTX_VERSION..."
 curl -L -o mediamtx.tar.gz https://github.com/bluenviron/mediamtx/releases/download/${MEDIAMTX_VERSION}/mediamtx_${MEDIAMTX_VERSION}_linux_amd64.tar.gz
 tar -xzf mediamtx.tar.gz
